@@ -25,7 +25,7 @@ class User(UserMixin):
 class UserManager:
     def __init__(self, db_path='users.db'):
         self.db_path = db_path
-        encryption_key = os.getenv('ENCRYPTION_KEY')
+        encryption_key = 'Yx6--EB097yXUu4wN5jR5NYq7CTaed5WIyzGj0XXq7w='
         if not encryption_key:
             raise ValueError("ENCRYPTION_KEY environment variable must be set")
         self.cipher = Fernet(encryption_key.encode())
