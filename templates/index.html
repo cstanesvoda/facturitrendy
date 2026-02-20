@@ -1,0 +1,2480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trendyol Order Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .header {
+            background: linear-gradient(135deg, #F27A1A 0%, #FF6B35 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        .status-badge {
+            font-size: 0.85rem;
+            padding: 0.25rem 0.75rem;
+        }
+        .status-Created { background-color: #0d6efd !important; }
+        .status-Picking { background-color: #6610f2 !important; }
+        .status-Invoiced { background-color: #6f42c1 !important; }
+        .status-ReadyToShip { background-color: #0dcaf0 !important; }
+        .status-Shipped { background-color: #fd7e14 !important; }
+        .status-Delivered { background-color: #198754 !important; }
+        .status-Cancelled { background-color: #dc3545 !important; }
+        .status-UnDelivered { background-color: #6c757d !important; }
+        .status-Returned { background-color: #6c757d !important; }
+        .loading {
+            text-align: center;
+            padding: 3rem;
+        }
+        .filter-section {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        .table-view {
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+        .table-view table {
+            margin-bottom: 0;
+            min-width: 800px;
+        }
+        .table-view thead {
+            background-color: #f8f9fa;
+        }
+        .table-view tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+        .sortable-header {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 20px !important;
+        }
+        .sortable-header:hover {
+            background-color: #e9ecef;
+        }
+        .sortable-header::after {
+            content: '⇅';
+            position: absolute;
+            right: 8px;
+            opacity: 0.3;
+            font-size: 0.8rem;
+        }
+        .sortable-header.asc::after {
+            content: '▲';
+            opacity: 1;
+        }
+        .sortable-header.desc::after {
+            content: '▼';
+            opacity: 1;
+        }
+        
+        #statusDropdownMenu {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        #statusDropdownMenu .dropdown-item {
+            cursor: pointer;
+        }
+        
+        #statusDropdownMenu .dropdown-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        #statusDropdownMenu label {
+            cursor: pointer;
+            margin-bottom: 0;
+        }
+        
+        @media (max-width: 768px) {
+            .header {
+                padding: 1rem 0;
+            }
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            .header p {
+                font-size: 0.875rem;
+            }
+            .filter-section {
+                padding: 1rem;
+            }
+            .filter-section .row {
+                row-gap: 0.75rem;
+            }
+            .table-view {
+                margin: 0 -15px;
+                border-radius: 0;
+            }
+            .btn-group {
+                flex-wrap: wrap;
+            }
+            .pagination-controls {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .container {
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
+            }
+            .header .container {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1>Trendyol Order Manager</h1>
+                    <p class="mb-0">Manage and track your orders</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('logout') }}" class="btn btn-light">
+                        <i class="bi bi-box-arrow-right"></i> Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        {% if not credentials_configured %}
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <strong>Configuration Required!</strong> Trendyol API credentials are not configured. 
+            Please set TRENDYOL_API_KEY, TRENDYOL_API_SECRET, and TRENDYOL_SUPPLIER_ID environment variables.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+        
+        <ul class="nav nav-tabs mb-4 flex-wrap" id="orderTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="facturare-tab" data-bs-toggle="tab" data-bs-target="#facturare" type="button" role="tab">
+                    Facturare
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="smartbill-tab" data-bs-toggle="tab" data-bs-target="#smartbill" type="button" role="tab">
+                    SmartBill Invoices
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="stornare-tab" data-bs-toggle="tab" data-bs-target="#stornare" type="button" role="tab">
+                    Stornare
+                </button>
+            </li>
+ 
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="all-orders-tab" data-bs-toggle="tab" data-bs-target="#all-orders" type="button" role="tab">
+                    All Orders
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="without-invoice-tab" data-bs-toggle="tab" data-bs-target="#without-invoice" type="button" role="tab">
+                    Without Invoice
+                </button>
+            </li>
+            
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="upload-trendyol-tab" data-bs-toggle="tab" data-bs-target="#upload-trendyol" type="button" role="tab">
+                    Upload to Trendyol
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="products-tab" data-bs-toggle="tab" data-bs-target="#products" type="button" role="tab">
+                    Produse Trendyol
+                </button>
+            </li>
+        </ul>
+        
+        
+        <div class="filter-section" id="trendyolFilters">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    <label for="orderNumberSearch" class="form-label">Order Number</label>
+                    <input type="text" id="orderNumberSearch" class="form-control" placeholder="Search by order #">
+                </div>
+                <div class="col-md-2">
+                    <label for="skuSearch" class="form-label">SKU</label>
+                    <input type="text" id="skuSearch" class="form-control" placeholder="Search by SKU">
+                </div>
+                <div class="col-md-2">
+                    <label for="startDate" class="form-label">Start Date</label>
+                    <input type="text" id="startDate" class="form-control" placeholder="Select start date">
+                </div>
+                <div class="col-md-2">
+                    <label for="endDate" class="form-label">End Date</label>
+                    <input type="text" id="endDate" class="form-control" placeholder="Select end date">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <div class="dropdown w-100">
+                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="statusDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span id="statusDropdownText">All Statuses</span>
+                        </button>
+                        <ul class="dropdown-menu w-100" aria-labelledby="statusDropdown" id="statusDropdownMenu">
+                            <li>
+                                <label class="dropdown-item">
+                                    <input type="checkbox" class="form-check-input me-2" value="Created"> Created
+                                </label>
+                            </li>
+                            <li>
+                                <label class="dropdown-item">
+                                    <input type="checkbox" class="form-check-input me-2" value="Picking"> Picking
+                                </label>
+                            </li>
+                            <li>
+                                <label class="dropdown-item">
+                                    <input type="checkbox" class="form-check-input me-2" value="Invoiced"> Invoiced
+                                </label>
+                            </li>
+
+                            <li>
+                                <label class="dropdown-item">
+                                    <input type="checkbox" class="form-check-input me-2" value="Shipped"> Shipped
+                                </label>
+                            </li>
+                            <li>
+                                <label class="dropdown-item">
+                                    <input type="checkbox" class="form-check-input me-2" value="Delivered"> Delivered
+                                </label>
+                            </li>
+                            <li>
+                                <label class="dropdown-item">
+                                    <input type="checkbox" class="form-check-input me-2" value="Cancelled"> Cancelled
+                                </label>
+                            </li>
+                            <li>
+                                <label class="dropdown-item">
+                                    <input type="checkbox" class="form-check-input me-2" value="UnDelivered"> UnDelivered
+                                </label>
+                            </li>
+                            <li>
+                                <label class="dropdown-item">
+                                    <input type="checkbox" class="form-check-input me-2" value="Returned"> Returned
+                                </label>
+                            </li>
+                            <li>
+                                <label class="dropdown-item">
+                                    <input type="checkbox" class="form-check-input me-2" value="ReadyToShip"> ReadyToShip
+                                </label>
+                            </li>
+                            <li>
+                                <label class="dropdown-item">
+                                    <input type="checkbox" class="form-check-input me-2" value="AtCollectionPoint"> AtCollectionPoint
+                                </label>
+                            </li>
+
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button class="dropdown-item text-primary" type="button" id="clearStatusBtn">
+                                    <i class="bi bi-x-circle me-2"></i>Clear All
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <label for="rowsPerPage" class="form-label">Rows per page</label>
+                    <select id="rowsPerPage" class="form-select">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="200">200 (max)</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button id="filterBtn" class="btn btn-primary w-100">
+                        <i class="bi bi-filter"></i> Filter Orders
+                    </button>
+                </div>
+            </div>
+            
+            <div id="bulkActionsSection" class="row g-3 mt-2" style="display: none;">
+                <div class="col-md-6">
+                    <button id="bulkSendBtn" class="btn btn-warning w-100">
+                        <i class="bi bi-send-fill"></i> Send Bulk to SmartBill
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <button id="bulkUploadBtn" class="btn btn-success w-100">
+                        <i class="bi bi-upload"></i> Upload Bulk to Trendyol
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-section" id="smartbillFilters" style="display: none;">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label for="invoiceSeries" class="form-label">Invoice Series</label>
+                    <input type="text" id="invoiceSeries" class="form-control" placeholder="e.g., SBINV" required>
+                </div>
+                <div class="col-md-4">
+                    <label for="invoiceNumber" class="form-label">Invoice Number</label>
+                    <input type="text" id="invoiceNumber" class="form-control" placeholder="e.g., 0044" required>
+                </div>
+                <div class="col-md-4">
+                    <button id="downloadPdfBtn" class="btn btn-success w-100">
+                        <i class="bi bi-download"></i> Download Invoice PDF
+                    </button>
+                </div>
+            </div>
+            <div id="smartbillMessage" class="alert mt-3" style="display: none;"></div>
+            
+            <div id="seriesInfo" class="mt-3" style="display: none;">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title">Available Invoice Series</h6>
+                        <div id="seriesInfoContent" class="text-muted">
+                            <small>Loading series information...</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-section" id="uploadTrendyolFilters" style="display: none;">
+            <h5 class="mb-3">Upload Invoice to Trendyol</h5>
+            <form id="uploadTrendyolForm" enctype="multipart/form-data">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label for="uploadOrderId" class="form-label">Shipment Package ID</label>
+                        <input type="text" id="uploadOrderId" class="form-control" placeholder="e.g., 10556562521" required>
+                        <small class="form-text text-muted">Not the order ID - use the shipment package ID from order details</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="invoicePdfFile" class="form-label">Invoice PDF File</label>
+                        <input type="file" id="invoicePdfFile" class="form-control" accept=".pdf" required>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" id="uploadTrendyolBtn" class="btn btn-warning w-100">
+                            <i class="bi bi-upload"></i> Upload to Trendyol
+                        </button>
+                    </div>
+                </div>
+            </form>
+            <div id="uploadTrendyolMessage" class="alert mt-3" style="display: none;"></div>
+        </div>
+
+        <div class="filter-section" id="productsFilters" style="display: none;">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label for="productBarcode" class="form-label">Barcode</label>
+                    <input type="text" id="productBarcode" class="form-control" placeholder="Search by barcode">
+                </div>
+                <div class="col-md-2">
+                    <label for="productApproved" class="form-label">Approval Status</label>
+                    <select id="productApproved" class="form-select">
+                        <option value="">All</option>
+                        <option value="true">Approved</option>
+                        <option value="false">Not Approved</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="productsPerPage" class="form-label">Rows per page</label>
+                    <select id="productsPerPage" class="form-select">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="200">200 (max)</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button id="filterProductsBtn" class="btn btn-primary w-100">
+                        <i class="bi bi-filter"></i> Filter Products
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-section" id="facturareFilters" style="display: none;">
+            <h5 class="mb-3">Facturare</h5>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    <label for="facturareStatus" class="form-label">Status</label>
+                    <select id="facturareStatus" class="form-select">
+                        <option value="">All Statuses</option>
+                        <option value="Created">Created</option>
+                        <option value="Picking">Picking</option>
+                        <option value="Invoiced">Invoiced</option>
+                        <option value="Shipped">Shipped</option>
+                        <option value="Delivered">Delivered</option>
+                        <option value="Cancelled">Cancelled</option>
+                        <option value="UnDelivered">UnDelivered</option>
+                        <option value="Returned">Returned</option>
+                        <option value="ReadyToShip">ReadyToShip</option>
+                        <option value="AtCollectionPoint">AtCollectionPoint</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="facturareStartDate" class="form-label">Start Date</label>
+                    <input type="text" id="facturareStartDate" class="form-control" placeholder="Select start date">
+                </div>
+                <div class="col-md-2">
+                    <label for="facturareEndDate" class="form-label">End Date</label>
+                    <input type="text" id="facturareEndDate" class="form-control" placeholder="Select end date">
+                </div>
+                <div class="col-md-3">
+                    <label for="facturareSearch" class="form-label">Order # / SKU / StockCode (comma sep.)</label>
+                    <input type="text" id="facturareSearch" class="form-control" placeholder="e.g., 105551, 6290360, ABC123">
+                </div>
+                <div class="col-md-2">
+                    <label for="facturareSortCurrency" class="form-label">Sort by Currency</label>
+                    <select id="facturareSortCurrency" class="form-select">
+                        <option value="">All</option>
+                        <option value="TRY">TRY</option>
+                        <option value="RON">RON</option>
+                        <option value="EUR">EUR</option>
+                        <option value="USD">USD</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-2">
+                    <button id="facturareFilterBtn" class="btn btn-primary w-100">
+                        Filter Orders
+                    </button>
+                </div>
+            </div>
+            <div class="row g-3 mt-2">
+                <div class="col-md-2">
+                    <label for="facturareIssueDate" class="form-label">Issue Date (optional)</label>
+                    <input type="date" id="facturareIssueDate" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <label for="facturareGestiune" class="form-label">Gestiune</label>
+                    <select id="facturareGestiune" class="form-select">
+                        <option value="cu">Cu gestiune</option>
+                        <option value="fara">Fara gestiune</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row g-3 mt-2">
+                <div class="col-md-3">
+                    <button id="facturareToggleInvoiced" class="btn btn-outline-secondary w-100">
+                        Hide orders in DB
+                    </button>
+                </div>
+                <div class="col-md-4">
+                    <button id="facturareBulkBtn" class="btn btn-danger w-100" disabled>
+                        Bulk Facturare (SmartBill + Trendyol)
+                    </button>
+                </div>
+                <div class="col-md-8">
+                    <div id="facturareMessage" class="alert mb-0" style="display: none;"></div>
+                </div>
+            </div>
+            <div id="facturareProgress" class="mt-3" style="display: none;">
+                <div class="progress mb-2">
+                    <div id="facturareProgressBar" class="progress-bar" role="progressbar" style="width: 0%">0%</div>
+                </div>
+                <small id="facturareProgressText" class="text-muted"></small>
+            </div>
+            <div id="facturareTableContainer" class="mt-3" style="display: none;">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Order #</th>
+                                <th>Customer</th>
+                                <th>Order Date</th>
+                                <th>Status</th>
+                                <th>Total</th>
+                                <th>Currency</th>
+                                <th>Invoice</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="facturareTableBody"></tbody>
+                    </table>
+                </div>
+                <div id="facturareCount" class="text-muted mt-2"></div>
+            </div>
+        </div>
+
+        <div class="filter-section" id="stornareFilters" style="display: none;">
+            <h5 class="mb-3">Stornare Facturi SmartBill</h5>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label for="stornareSeries" class="form-label">Invoice Series</label>
+                    <input type="text" id="stornareSeries" class="form-control" placeholder="e.g., FRL">
+                </div>
+                <div class="col-md-5">
+                    <label for="stornareNumbers" class="form-label">Invoice Numbers (comma separated)</label>
+                    <input type="text" id="stornareNumbers" class="form-control" placeholder="e.g., 101, 102, 103">
+                </div>
+                <div class="col-md-2">
+                    <label for="stornareDate" class="form-label">Issue Date (optional)</label>
+                    <input type="date" id="stornareDate" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <button id="stornareBtn" class="btn btn-danger w-100">
+                        Stornare
+                    </button>
+                </div>
+            </div>
+            <div id="stornareMessage" class="alert mt-3" style="display: none;"></div>
+            <div id="stornareProgress" class="mt-3" style="display: none;">
+                <div class="progress mb-2">
+                    <div id="stornareProgressBar" class="progress-bar bg-danger" role="progressbar" style="width: 0%">0%</div>
+                </div>
+                <small id="stornareProgressText" class="text-muted"></small>
+            </div>
+            <div id="stornareResults" class="mt-3" style="display: none;">
+                <h6>Results:</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Series</th>
+                                <th>Number</th>
+                                <th>Status</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stornareResultsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3">Loading orders...</p>
+        </div>
+
+        <div id="error" class="alert alert-danger" style="display: none;"></div>
+
+        <div id="tableView" class="table-view">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Order #</th>
+                        <th>Customer</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Invoice Status</th>
+                        <th>Total</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                </tbody>
+            </table>
+        </div>
+
+        <div id="paginationBar" class="d-flex justify-content-between align-items-center mt-4 pagination-controls">
+            <div>
+                <span id="pageInfo" class="text-muted">Page 1 of 1</span>
+            </div>
+            <div class="btn-group" role="group">
+                <button id="prevPageBtn" class="btn btn-outline-primary" disabled>
+                    <i class="bi bi-chevron-left"></i> Previous
+                </button>
+                <button id="nextPageBtn" class="btn btn-outline-primary" disabled>
+                    Next <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="invoiceModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Invoice JSON</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-end mb-2">
+                        <button class="btn btn-sm btn-outline-primary" onclick="copyInvoiceJSON(event)">
+                            <i class="bi bi-clipboard"></i> Copy JSON
+                        </button>
+                    </div>
+                    <pre id="invoiceJSON" style="background-color: #f8f9fa; padding: 1rem; border-radius: 0.5rem; max-height: 500px; overflow-y: auto;"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="confirmSmartBillModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm SmartBill Invoice</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">Please review the invoice data that will be sent to SmartBill:</p>
+                    <pre id="smartBillJSON" style="background-color: #f8f9fa; padding: 1rem; border-radius: 0.5rem; max-height: 400px; overflow-y: auto;"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-warning" id="confirmSendBtn">
+                        <i class="bi bi-send"></i> Confirm & Send to SmartBill
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="bulkSendConfigModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Bulk Send to SmartBill</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="bulkOrderCount" class="form-label">How many orders do you want to process?</label>
+                        <input type="number" class="form-control" id="bulkOrderCount" min="1" value="10" placeholder="Enter number of orders">
+                        <small class="form-text text-muted">Only Delivered orders without existing invoices will be processed</small>
+                    </div>
+                    <div id="bulkProgress" style="display: none;">
+                        <div class="progress mb-2">
+                            <div id="bulkProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%">0%</div>
+                        </div>
+                        <p class="text-center mb-0"><span id="bulkProcessed">0</span> / <span id="bulkTotal">0</span> orders processed</p>
+                        <p class="text-center text-muted mb-0"><small id="bulkStatus">Processing...</small></p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="bulkCancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-warning" id="bulkStartBtn">
+                        <i class="bi bi-send-fill"></i> Start Processing
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="bulkUploadConfigModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Bulk Upload to Trendyol</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="bulkUploadCount" class="form-label">How many invoices do you want to upload?</label>
+                        <input type="number" class="form-control" id="bulkUploadCount" min="1" value="10" placeholder="Enter number of invoices">
+                        <small class="form-text text-muted">Only orders with SmartBill invoices that haven't been uploaded yet will be processed</small>
+                    </div>
+                    <div id="bulkUploadProgress" style="display: none;">
+                        <div class="progress mb-2">
+                            <div id="bulkUploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%">0%</div>
+                        </div>
+                        <p class="text-center mb-0"><span id="bulkUploadProcessed">0</span> / <span id="bulkUploadTotal">0</span> invoices uploaded</p>
+                        <p class="text-center text-muted mb-0"><small id="bulkUploadStatus">Processing...</small></p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="bulkUploadCancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-success" id="bulkUploadStartBtn">
+                        <i class="bi bi-upload"></i> Start Upload
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        let currentPage = 0;
+        let pageSize = 20;
+        let totalPages = 1;
+        let ordersData = {};
+        let currentInvoiceJSON = '';
+        let activeTab = 'all';
+        let orderInvoices = {};
+        let currentOrders = [];
+        let sortColumn = null;
+        let sortDirection = 'asc';
+
+        const startDatePicker = flatpickr("#startDate", {
+            enableTime: false,
+            dateFormat: "Y-m-d",
+        });
+
+        const endDatePicker = flatpickr("#endDate", {
+            enableTime: false,
+            dateFormat: "Y-m-d",
+        });
+
+        flatpickr("#facturareStartDate", {
+            enableTime: false,
+            dateFormat: "Y-m-d",
+        });
+
+        flatpickr("#facturareEndDate", {
+            enableTime: false,
+            dateFormat: "Y-m-d",
+        });
+
+        function sortTable(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            
+            const sorted = [...currentOrders].sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(column) {
+                    case 'orderNumber':
+                        aVal = a.orderNumber || '';
+                        bVal = b.orderNumber || '';
+                        break;
+                    case 'customer':
+                        aVal = `${a.customerFirstName || ''} ${a.customerLastName || ''}`.trim();
+                        bVal = `${b.customerFirstName || ''} ${b.customerLastName || ''}`.trim();
+                        break;
+                    case 'date':
+                        aVal = new Date(a.orderDate || 0);
+                        bVal = new Date(b.orderDate || 0);
+                        break;
+                    case 'status':
+                        // aVal = a.shipmentPackageStatus || a.status || '';
+                        // bVal = b.shipmentPackageStatus || b.status || '';
+                        aVal = a.status || '';
+                        bVal = b.status || '';
+                        break;
+                    case 'total':
+                        aVal = a.grossAmount || a.totalPrice || 0;
+                        bVal = b.grossAmount || b.totalPrice || 0;
+                        break;
+                    default:
+                        return 0;
+                }
+                
+                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            renderTable(sorted);
+            updateSortIndicators();
+        }
+        
+        function updateSortIndicators() {
+            document.querySelectorAll('.sortable-header').forEach(th => {
+                th.classList.remove('asc', 'desc');
+            });
+            
+            if (sortColumn) {
+                const th = document.querySelector(`.sortable-header[data-column="${sortColumn}"]`);
+                if (th) {
+                    th.classList.add(sortDirection);
+                }
+            }
+        }
+        
+        function renderTable(orders) {
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = '';
+            
+            if (orders.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="7" class="text-center">No orders found</td></tr>';
+                return;
+            }
+            
+            orders.forEach(order => {
+                tableBody.innerHTML += createTableRow(order);
+            });
+        }
+
+        async function generateInvoiceJSON(order) {
+            const orderDate = order.orderDate ? new Date(order.orderDate) : new Date();
+            const issueDate = orderDate.toISOString().split('T')[0];
+            
+            const gestiuneMode = document.getElementById('facturareGestiune').value;
+            let warehouseName = '';
+            if (gestiuneMode === 'cu') {
+                try {
+                    const response = await fetch('/api/get-gestiune');
+                    if (response.ok) {
+                        const data = await response.json();
+                        warehouseName = data.gestiune || '';
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch gestiune:', e);
+                }
+            }
+
+            const skuMapping = {
+                "TYBE5ZISTJCR2Q5O74": "6290360593661",
+                "TYBZTU26IL7M50OR26": "6290360599168",
+                "TYBOOEG4YXK6HCXL86": "6291108735411",
+                "PMPE7SEBBAN4ZPP211": "6290360599120",
+                "TYBO6S9ZD26OA6NI63": "6290360598888",
+                "TYB46RAYZ8NJKLLI50": "6290362345749",
+                "776291108737194": "6291108737194",
+                "PMPGPLCV5FBWOBKL66": "6290306595771",
+                "TYB50R0MDLQTMSGA13": "6290362345749",
+                "TYBMF5JUXY6R2ILI26": "6290362345749",
+                "TYBG2PCBBTTXM2Z558": "6298043160865",
+                "TYBUZOW2O04GCF0H47": "6290306595771",
+                "DH-6290362340362": "6290362340362",
+                "DH-6291107456485": "6291107456485",
+                "DH-6290362345749": "6290362345749",
+                "344259RYI9KM4NWZ": "6290362340362",
+                "TYBDVN19MS50NE4L05": "6291108737194",
+                "PMPNUJML9VHN1WSL78": "6290362346548",
+                "TYBY6WXHAX51S4K146": "6290362346548",
+                "DH-6295199802700": "6295199802700",
+                "DH-6294015181272": "6294015181272",
+                "DH-6291108738504": "6291108738504",
+                "DH-6290360598918": "6290360598918",
+                "899365NXPSOQXOR5": "6290360599113",
+                "DH-6290362340638": "6290362340638",
+                "TYBC9FYOAYWMH5V824": "6298043160865",
+                "2992155993566": "6290362349679",
+                "54512289WHIP1": "6290362349648",
+                "PMPX7MWI02JJOZ5O03": "6290360595764",
+                "PMPCHUVPFHKM851K80": "6290362340638",
+                "4064666318097": "1100011127",
+                "TYBVLGRVD5MIVGV049": "6290360598901",
+                "TYB1LV9CP4QBMKDL08": "6298043160964",
+                "PMPIHBSEOOZSJJB821": "6290362344506",
+                "PMP9V4UX54QSMIVM71": "6290362346531",
+                "TYBNTUAF3RG4369H97": "6291108737194",
+                "TYBN0O65AFCYAWO087": "6298043160964",
+                "TYB61GZIOG8D9CHN23": "6298043160964",
+                "TYC14OQK3N169892658027912": "6291108738290"
+            };
+
+            const products = (order.lines || []).map(line => {
+                let codul = line.merchantSku || '';
+                if (line.merchantSku === 'merchantSku') {
+                    codul = line.sku || '';
+                }
+                const sku = line.sku || '';
+                if (skuMapping[sku]) {
+                    codul = skuMapping[sku];
+                }
+                return {
+                    code: codul,
+                    name: line.productName || '',
+                    productDescription: "Numar comanda Trendyol:" + order.orderNumber,
+                    measuringUnitName: "buc",
+                    currency: order.currencyCode || "RON",
+                    quantity: line.quantity || 1,
+                    price: line.price || 0,
+                    isTaxIncluded: true,
+                    taxPercentage: line.vatRate,
+                    saveToDb: false,
+                    warehouseName: warehouseName
+                };
+            });
+
+            let city = order.invoiceAddress?.city || order.shipmentAddress?.city || '';
+            let county = order.invoiceAddress?.district || order.shipmentAddress?.district || '';
+            const postalCode = order.invoiceAddress?.postalCode || order.shipmentAddress?.postalCode || '';
+
+            if (postalCode) {
+                try {
+                    const response = await fetch(`/api/postal-code/${postalCode}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success) {
+                            if (!city) city = data.city;
+                            county = data.county;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Postal code lookup failed:', e);
+                }
+            }
+
+            let companyVatCode = "YOUR_COMPANY_VAT_CODE";
+            let seriesName = "SERIE_FACTURA";
+            
+            try {
+                const response = await fetch('/api/smartbill/next-invoice-number');
+                if (response.ok) {
+                    const data = await response.json();
+                    companyVatCode = data.cif || companyVatCode;
+                    seriesName = data.seriesName || seriesName;
+                }
+            } catch (e) {
+                console.error('Failed to fetch invoice info:', e);
+            }
+
+            const today = new Date();
+            const formattedDate_today = today.toISOString().split('T')[0];
+
+            const orderCurrency = order.currencyCode || 'RON';
+            const isOSS = orderCurrency !== 'RON';
+            const baseVatCode = companyVatCode.replace(/_OSS/g, '');
+            const baseSeriesName = seriesName.replace(/-OSS/g, '');
+            const finalSeriesName = isOSS ? baseSeriesName + '-OSS' : baseSeriesName;
+
+            const invoiceData = {
+                companyVatCode: baseVatCode,
+                useIntraCif: isOSS,
+                seriesName: finalSeriesName,
+                client: {
+                    name: `${order.customerFirstName || ''} ${order.customerLastName || ''}`.trim() || 'N/A',
+                    vatCode: '-',
+                    isTaxPayer: false,
+                    address: order.invoiceAddress?.address1 || order.shipmentAddress?.address1 || '',
+                    city: city,
+                    county: county,
+                    country: order.invoiceAddress?.countryCode || order.shipmentAddress?.countryCode || 'RO',
+                    email: order.customerEmail || '',
+                    saveToDb: true
+                },
+                issueDate: formattedDate_today,
+                currency: order.currencyCode || '',
+                useStock: gestiuneMode === 'cu',
+                products: products
+            };
+
+            return invoiceData;
+        }
+
+        async function showInvoiceJSON(orderId) {
+            const order = ordersData[orderId];
+            if (!order) {
+                alert('Order data not found');
+                return;
+            }
+
+            const modalTitle = document.querySelector('#invoiceModal .modal-title');
+            
+            if (activeTab === 'all') {
+                currentInvoiceJSON = JSON.stringify(order, null, 2);
+                modalTitle.textContent = 'Order JSON (Trendyol Raw Data)';
+            } else {
+                const invoiceData = await generateInvoiceJSON(order);
+                currentInvoiceJSON = JSON.stringify(invoiceData, null, 2);
+                modalTitle.textContent = 'Invoice JSON';
+            }
+            
+            document.getElementById('invoiceJSON').textContent = currentInvoiceJSON;
+            
+            const modal = new bootstrap.Modal(document.getElementById('invoiceModal'));
+            modal.show();
+        }
+
+        function copyInvoiceJSON(event) {
+            navigator.clipboard.writeText(currentInvoiceJSON).then(() => {
+                const btn = event.target.closest('button');
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                }, 2000);
+            }).catch(err => {
+                alert('Failed to copy: ' + err);
+            });
+        }
+
+        let pendingSmartBillData = null;
+        let pendingSmartBillButton = null;
+
+        async function sendToSmartBill(btn, orderId) {
+            const order = ordersData[orderId];
+            if (!order) {
+                alert('Order data not found');
+                return;
+            }
+
+            try {
+                const invoiceData = await generateInvoiceJSON(order);
+                invoiceData.orderNumber = order.orderNumber;
+
+                pendingSmartBillData = invoiceData;
+                pendingSmartBillButton = btn;
+
+                document.getElementById('smartBillJSON').textContent = JSON.stringify(invoiceData, null, 2);
+                
+                const modal = new bootstrap.Modal(document.getElementById('confirmSmartBillModal'));
+                modal.show();
+            } catch (err) {
+                alert('Error preparing invoice: ' + err.message);
+            }
+        }
+
+        async function confirmAndSendToSmartBill() {
+            if (!pendingSmartBillData || !pendingSmartBillButton) {
+                return;
+            }
+
+            const btn = pendingSmartBillButton;
+            let invoiceData = { ...pendingSmartBillData };
+            
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
+
+            const confirmBtn = document.getElementById('confirmSendBtn');
+            const confirmOriginalHTML = confirmBtn.innerHTML;
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
+
+            try {
+                const invoiceNumberData = await (await fetch('/api/smartbill/next-invoice-number')).json();
+                if (invoiceNumberData.seriesName && invoiceNumberData.nextNumber) {
+                    invoiceData.seriesName = invoiceNumberData.seriesName;
+                    invoiceData.number = invoiceNumberData.nextNumber;
+                }
+
+                const response = await fetch('/api/smartbill/create-invoice', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(invoiceData)
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    orderInvoices[pendingSmartBillData.orderNumber] = {
+                        series: result.series,
+                        number: result.number
+                    };
+                    
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = confirmOriginalHTML;
+                    
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('confirmSmartBillModal'));
+                    modal.hide();
+                    
+                    alert(`Invoice ${result.series}-${result.number} created successfully!`);
+                    loadOrders();
+                } else {
+                    alert('Error: ' + (result.error || 'Failed to create invoice'));
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = confirmOriginalHTML;
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = confirmOriginalHTML;
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+            } finally {
+                pendingSmartBillData = null;
+                pendingSmartBillButton = null;
+            }
+        }
+
+        document.getElementById('confirmSendBtn').addEventListener('click', confirmAndSendToSmartBill);
+
+        async function downloadFactura(btn, orderNumber, series, number) {
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Downloading...';
+
+            try {
+                const response = await fetch(`/api/smartbill/invoice/pdf?series=${series}&number=${number}`);
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `invoice-${series}${number}-${orderNumber}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } else {
+                    const data = await response.json();
+                    alert('Error: ' + (data.error || 'Failed to download invoice'));
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+            }
+        }
+
+        async function uploadToTrendyol(btn, packageId, series, number) {
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Uploading...';
+
+            try {
+                const response = await fetch('/api/upload-smartbill-invoice-to-trendyol', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        shipment_package_id: packageId,
+                        series: series,
+                        number: number
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    alert('Success: Invoice uploaded to Trendyol!');
+                    loadOrders();
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to upload invoice to Trendyol'));
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+            }
+        }
+
+        function bulkSendToSmartBill() {
+            const modal = new bootstrap.Modal(document.getElementById('bulkSendConfigModal'));
+            document.getElementById('bulkOrderCount').value = '10';
+            document.getElementById('bulkProgress').style.display = 'none';
+            document.getElementById('bulkStartBtn').style.display = 'block';
+            document.getElementById('bulkCancelBtn').disabled = false;
+            modal.show();
+        }
+
+        async function startBulkSend() {
+            const orderCount = parseInt(document.getElementById('bulkOrderCount').value) || 10;
+            const startBtn = document.getElementById('bulkStartBtn');
+            const cancelBtn = document.getElementById('bulkCancelBtn');
+            const progressDiv = document.getElementById('bulkProgress');
+            const progressBar = document.getElementById('bulkProgressBar');
+            const processedSpan = document.getElementById('bulkProcessed');
+            const totalSpan = document.getElementById('bulkTotal');
+            const statusSpan = document.getElementById('bulkStatus');
+
+            const statusCheckboxes = document.querySelectorAll('#statusDropdownMenu input[type="checkbox"]:checked');
+            const selectedStatuses = Array.from(statusCheckboxes).map(cb => cb.value);
+            let startDate = document.getElementById('startDate').value;
+            let endDate = document.getElementById('endDate').value;
+            const orderNumber = document.getElementById('orderNumberSearch').value;
+            const sku = document.getElementById('skuSearch').value;
+
+            if (startDate) {
+                startDate = startDate + 'T00:00:00';
+            }
+            if (endDate) {
+                endDate = endDate + 'T23:59:59';
+            }
+
+            startBtn.style.display = 'none';
+            progressDiv.style.display = 'block';
+            cancelBtn.disabled = true;
+            
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+            processedSpan.textContent = '0';
+            totalSpan.textContent = orderCount;
+            statusSpan.textContent = 'Starting...';
+
+            try {
+                const response = await fetch('/api/bulk-send-to-smartbill', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        order_count: orderCount,
+                        status: selectedStatuses.join(','),
+                        startDate: startDate,
+                        endDate: endDate,
+                        orderNumber: orderNumber,
+                        sku: sku
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const percentage = 100;
+                    progressBar.style.width = percentage + '%';
+                    progressBar.textContent = percentage + '%';
+                    progressBar.classList.remove('progress-bar-animated');
+                    processedSpan.textContent = data.total;
+                    statusSpan.textContent = 'Complete!';
+                    
+                    setTimeout(() => {
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('bulkSendConfigModal'));
+                        modal.hide();
+                        
+                        const summary = `Bulk Send Complete!\n\nSuccessful: ${data.successful}\nFailed: ${data.failed}\nTotal: ${data.total}`;
+                        if (data.errors && data.errors.length > 0) {
+                            alert(summary + '\n\nErrors:\n' + data.errors.join('\n'));
+                        } else {
+                            alert(summary);
+                        }
+                        loadOrders();
+                    }, 1000);
+                } else {
+                    statusSpan.textContent = 'Error!';
+                    progressBar.classList.remove('progress-bar-animated');
+                    progressBar.classList.add('bg-danger');
+                    alert('Error: ' + (data.error || 'Failed to bulk send to SmartBill'));
+                    cancelBtn.disabled = false;
+                }
+            } catch (err) {
+                statusSpan.textContent = 'Error!';
+                progressBar.classList.remove('progress-bar-animated');
+                progressBar.classList.add('bg-danger');
+                alert('Error: ' + err.message);
+                cancelBtn.disabled = false;
+            }
+        }
+
+        function bulkUploadToTrendyol() {
+            const modal = new bootstrap.Modal(document.getElementById('bulkUploadConfigModal'));
+            document.getElementById('bulkUploadCount').value = '10';
+            document.getElementById('bulkUploadProgress').style.display = 'none';
+            document.getElementById('bulkUploadStartBtn').style.display = 'block';
+            document.getElementById('bulkUploadCancelBtn').disabled = false;
+            modal.show();
+        }
+
+        async function startBulkUpload() {
+            const uploadCount = parseInt(document.getElementById('bulkUploadCount').value) || 10;
+            const startBtn = document.getElementById('bulkUploadStartBtn');
+            const cancelBtn = document.getElementById('bulkUploadCancelBtn');
+            const progressDiv = document.getElementById('bulkUploadProgress');
+            const progressBar = document.getElementById('bulkUploadProgressBar');
+            const processedSpan = document.getElementById('bulkUploadProcessed');
+            const totalSpan = document.getElementById('bulkUploadTotal');
+            const statusSpan = document.getElementById('bulkUploadStatus');
+
+            const statusCheckboxes = document.querySelectorAll('#statusDropdownMenu input[type="checkbox"]:checked');
+            const selectedStatuses = Array.from(statusCheckboxes).map(cb => cb.value);
+            let startDate = document.getElementById('startDate').value;
+            let endDate = document.getElementById('endDate').value;
+            const orderNumber = document.getElementById('orderNumberSearch').value;
+            const sku = document.getElementById('skuSearch').value;
+
+            if (startDate) {
+                startDate = startDate + 'T00:00:00';
+            }
+            if (endDate) {
+                endDate = endDate + 'T23:59:59';
+            }
+
+            startBtn.style.display = 'none';
+            progressDiv.style.display = 'block';
+            cancelBtn.disabled = true;
+            
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+            processedSpan.textContent = '0';
+            totalSpan.textContent = uploadCount;
+            statusSpan.textContent = 'Starting...';
+
+            try {
+                const response = await fetch('/api/bulk-upload-to-trendyol', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        upload_count: uploadCount,
+                        status: selectedStatuses.join(','),
+                        startDate: startDate,
+                        endDate: endDate,
+                        orderNumber: orderNumber,
+                        sku: sku
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const percentage = 100;
+                    progressBar.style.width = percentage + '%';
+                    progressBar.textContent = percentage + '%';
+                    progressBar.classList.remove('progress-bar-animated');
+                    processedSpan.textContent = data.total;
+                    statusSpan.textContent = 'Complete!';
+                    
+                    setTimeout(() => {
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('bulkUploadConfigModal'));
+                        modal.hide();
+                        
+                        const summary = `Bulk Upload Complete!\n\nSuccessful: ${data.successful}\nFailed: ${data.failed}\nTotal: ${data.total}`;
+                        if (data.errors && data.errors.length > 0) {
+                            alert(summary + '\n\nErrors:\n' + data.errors.join('\n'));
+                        } else {
+                            alert(summary);
+                        }
+                        loadOrders();
+                    }, 1000);
+                } else {
+                    statusSpan.textContent = 'Error!';
+                    progressBar.classList.remove('progress-bar-animated');
+                    progressBar.classList.add('bg-danger');
+                    alert('Error: ' + (data.error || 'Failed to bulk upload to Trendyol'));
+                    cancelBtn.disabled = false;
+                }
+            } catch (err) {
+                statusSpan.textContent = 'Error!';
+                progressBar.classList.remove('progress-bar-animated');
+                progressBar.classList.add('bg-danger');
+                alert('Error: ' + err.message);
+                cancelBtn.disabled = false;
+            }
+        }
+
+        document.getElementById('bulkSendBtn').addEventListener('click', bulkSendToSmartBill);
+        document.getElementById('bulkStartBtn').addEventListener('click', startBulkSend);
+        document.getElementById('bulkUploadBtn').addEventListener('click', bulkUploadToTrendyol);
+        document.getElementById('bulkUploadStartBtn').addEventListener('click', startBulkUpload);
+
+
+        async function downloadInvoicePDF() {
+            const series = document.getElementById('invoiceSeries').value.trim();
+            const number = document.getElementById('invoiceNumber').value.trim();
+            const messageDiv = document.getElementById('smartbillMessage');
+            const downloadBtn = document.getElementById('downloadPdfBtn');
+            
+            messageDiv.style.display = 'none';
+            
+            if (!series || !number) {
+                messageDiv.className = 'alert alert-warning mt-3';
+                messageDiv.textContent = 'Please enter both invoice series and number';
+                messageDiv.style.display = 'block';
+                return;
+            }
+            
+            downloadBtn.disabled = true;
+            downloadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Downloading...';
+            
+            try {
+                const response = await fetch(`/api/smartbill/invoice/pdf?series=${encodeURIComponent(series)}&number=${encodeURIComponent(number)}`);
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `invoice_${series}_${number}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    messageDiv.className = 'alert alert-success mt-3';
+                    messageDiv.textContent = `Invoice ${series}-${number} downloaded successfully!`;
+                    messageDiv.style.display = 'block';
+                } else {
+                    const data = await response.json();
+                    messageDiv.className = 'alert alert-danger mt-3';
+                    messageDiv.textContent = data.error || 'Failed to download invoice';
+                    messageDiv.style.display = 'block';
+                }
+            } catch (err) {
+                messageDiv.className = 'alert alert-danger mt-3';
+                messageDiv.textContent = 'Error: ' + err.message;
+                messageDiv.style.display = 'block';
+            } finally {
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = '<i class="bi bi-download"></i> Download Invoice PDF';
+            }
+        }
+
+        async function loadOrderInvoices() {
+            try {
+                const response = await fetch('/api/order-invoices');
+                if (response.ok) {
+                    const data = await response.json();
+                    orderInvoices = {};
+                    if (data.invoices && Array.isArray(data.invoices)) {
+                        data.invoices.forEach(inv => {
+                            orderInvoices[inv.order_number] = {
+                                series: inv.series,
+                                number: inv.number
+                            };
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load order invoices:', e);
+            }
+        }
+
+        async function loadOrders() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const tableBody = document.getElementById('tableBody');
+            const tableHead = document.querySelector('#tableView thead tr');
+
+            await loadOrderInvoices();
+
+            tableBody.innerHTML = '';
+            loading.style.display = 'block';
+            error.style.display = 'none';
+
+            if (activeTab === 'without-invoice') {
+                tableHead.innerHTML = `
+                    <th class="sortable-header" data-column="orderNumber" onclick="sortTable('orderNumber')">Order #</th>
+                    <th class="sortable-header" data-column="customer" onclick="sortTable('customer')">Customer</th>
+                    <th class="sortable-header" data-column="date" onclick="sortTable('date')">Date</th>
+                    <th class="sortable-header" data-column="status" onclick="sortTable('status')">Status</th>
+                    <th>Invoice Status</th>
+                    <th class="sortable-header" data-column="total" onclick="sortTable('total')">Total</th>
+                    <th>Action</th>
+                `;
+            } else {
+                tableHead.innerHTML = `
+                    <th>Order #</th>
+                    <th>Customer</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Invoice Status</th>
+                    <th>Total</th>
+                    <th>Action</th>
+                `;
+            }
+
+            const statusCheckboxes = document.querySelectorAll('#statusDropdownMenu input[type="checkbox"]:checked');
+            const selectedStatuses = Array.from(statusCheckboxes).map(cb => cb.value);
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const orderNumber = document.getElementById('orderNumberSearch').value;
+            const sku = document.getElementById('skuSearch').value;
+
+            const params = new URLSearchParams({
+                page: currentPage,
+                size: pageSize
+            });
+
+            if (selectedStatuses.length > 0) {
+                params.append('status', selectedStatuses.join(','));
+            }
+            if (startDate) {
+                // Send start of day in Romanian timezone
+                params.append('startDate', startDate + 'T00:00:00');
+            }
+            if (endDate) {
+                // Send end of day in Romanian timezone
+                params.append('endDate', endDate + 'T23:59:59');
+            }
+            if (orderNumber) params.append('orderNumber', orderNumber);
+            if (sku) params.append('sku', sku);
+
+            try {
+                const response = await fetch(`/api/orders?${params}`);
+                const data = await response.json();
+
+                loading.style.display = 'none';
+
+                if (data.error) {
+                    error.textContent = data.error;
+                    error.style.display = 'block';
+                    return;
+                }
+
+                if (data.content && data.content.length > 0) {
+                    let filteredOrders = data.content;
+                    
+                    if (activeTab === 'without-invoice') {
+                        filteredOrders = data.content.filter(order => !order.invoiceLink && !order.hasInvoice);
+                    }
+                    
+                    filteredOrders.forEach(order => {
+                        ordersData[order.id] = order;
+                    });
+
+                    currentOrders = filteredOrders;
+                    sortColumn = null;
+                    sortDirection = 'asc';
+                    renderTable(currentOrders);
+
+                    totalPages = data.totalPages || Math.ceil(data.totalElements / pageSize) || 1;
+                    updatePaginationControls();
+                } else {
+                    currentOrders = [];
+                    tableBody.innerHTML = '<tr><td colspan="7" class="text-center">No orders found</td></tr>';
+                    totalPages = 1;
+                    updatePaginationControls();
+                }
+            } catch (err) {
+                loading.style.display = 'none';
+                error.textContent = 'Failed to load orders: ' + err.message;
+                error.style.display = 'block';
+            }
+        }
+
+        function updatePaginationControls() {
+            const pageInfo = document.getElementById('pageInfo');
+            const prevBtn = document.getElementById('prevPageBtn');
+            const nextBtn = document.getElementById('nextPageBtn');
+
+            pageInfo.textContent = `Page ${currentPage + 1} of ${totalPages}`;
+            
+            prevBtn.disabled = currentPage === 0;
+            nextBtn.disabled = currentPage >= totalPages - 1;
+        }
+
+        function getStatusClass(status) {
+            const statusMap = {
+                'Created': 'status-Created',
+                'Picking': 'status-Picking',
+                'Invoiced': 'status-Invoiced',
+                'Shipped': 'status-Shipped',
+                'Delivered': 'status-Delivered',
+                'Cancelled': 'status-Cancelled',
+                'UnDelivered': 'status-UnDelivered',
+                'Returned': 'status-Returned',
+                'ReadyToShip': 'status-ReadyToShip',
+                'AtCollectionPoint': 'bg-warning'
+            };
+            return statusMap[status] || 'bg-secondary';
+        }
+
+        function createTableRow(order) {
+            const packageId = order.id || 'unknown';
+            const orderNumber = order.orderNumber || 'N/A';
+            
+            const customerFirstName = order.customerFirstName || '';
+            const customerLastName = order.customerLastName || '';
+            const customerName = customerFirstName && customerLastName 
+                ? `${customerFirstName} ${customerLastName}` 
+                : 'N/A';
+            
+            // const status = order.shipmentPackageStatus || order.status || 'Unknown';
+            const status = order.status || 'Unknown';
+            const statusClass = getStatusClass(status);
+            const orderDate = order.orderDate ? new Date(order.orderDate).toLocaleDateString() : 'N/A';
+            
+            const totalPrice = order.grossAmount || order.totalPrice || 0;
+            const currency = order.currencyCode || 'RON';
+
+            const invoiceUploaded = order.invoiceLink || order.hasInvoice;
+            const invoiceStatus = invoiceUploaded 
+                ? '<span class="badge bg-success">Uploaded</span>' 
+                : '<span class="badge bg-danger">Not Uploaded</span>';
+
+            const hasSmartBillInvoice = orderInvoices[orderNumber];
+            
+            let actionButtons = '';
+            if (activeTab === 'all') {
+                actionButtons = `
+                    <button class="btn btn-sm btn-success" onclick="showInvoiceJSON('${packageId}')">
+                        <i class="bi bi-file-earmark-code"></i> JSON
+                    </button>
+                `;
+            } else if (activeTab === 'without-invoice') {
+                if (hasSmartBillInvoice) {
+                    actionButtons = `
+                        <button class="btn btn-sm btn-primary me-1" onclick="downloadFactura(this, '${orderNumber}', '${hasSmartBillInvoice.series}', '${hasSmartBillInvoice.number}')">
+                            <i class="bi bi-download"></i> Download
+                        </button>
+                        <button class="btn btn-sm btn-success" onclick="uploadToTrendyol(this, '${packageId}', '${hasSmartBillInvoice.series}', '${hasSmartBillInvoice.number}')">
+                            <i class="bi bi-upload"></i> Upload
+                        </button>
+                    `;
+                } else {
+                    actionButtons = `
+                        <button class="btn btn-sm btn-warning" onclick="sendToSmartBill(this, '${packageId}')">
+                            <i class="bi bi-send"></i> Send to SmartBill
+                        </button>
+                    `;
+                }
+            }
+
+            return `
+                <tr>
+                    <td><strong>${orderNumber}</strong></td>
+                    <td>${customerName}</td>
+                    <td>${orderDate}</td>
+                    <td><span class="badge status-badge ${statusClass}">${status}</span></td>
+                    <td>${invoiceStatus}</td>
+                    <td>${totalPrice} ${currency}</td>
+                    <td>${actionButtons}</td>
+                </tr>
+            `;
+        }
+
+        async function loadProducts() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const tableBody = document.getElementById('tableBody');
+            const tableHead = document.querySelector('#tableView thead tr');
+
+            tableBody.innerHTML = '';
+            loading.style.display = 'block';
+            error.style.display = 'none';
+
+            tableHead.innerHTML = `
+                <th>Name</th>
+                <th>Barcode</th>
+                <th>Stock Code</th>
+                <th>Quantity</th>
+                <th>Price</th>
+                <th>Status</th>
+                <th>Action</th>
+            `;
+
+            const barcode = document.getElementById('productBarcode').value;
+            const approved = document.getElementById('productApproved').value;
+            const productsSize = parseInt(document.getElementById('productsPerPage').value);
+
+            const params = new URLSearchParams({
+                page: currentPage,
+                size: productsSize
+            });
+
+            if (barcode) params.append('barcode', barcode);
+            if (approved) params.append('approved', approved);
+
+            try {
+                const response = await fetch(`/api/products?${params}`);
+                const data = await response.json();
+                
+                loading.style.display = 'none';
+
+                if (data.error) {
+                    error.textContent = data.error;
+                    error.style.display = 'block';
+                    totalPages = 1;
+                    updatePaginationControls();
+                    return;
+                }
+
+                if (data.content && data.content.length > 0) {
+                    data.content.forEach(product => {
+                        tableBody.innerHTML += createProductTableRow(product);
+                    });
+
+                    totalPages = data.totalPages || Math.ceil(data.totalElements / productsSize) || 1;
+                    updatePaginationControls();
+                } else {
+                    tableBody.innerHTML = '<tr><td colspan="7" class="text-center">No products found</td></tr>';
+                    totalPages = 1;
+                    updatePaginationControls();
+                }
+            } catch (err) {
+                loading.style.display = 'none';
+                error.textContent = 'Failed to load products: ' + err.message;
+                error.style.display = 'block';
+            }
+        }
+
+        function createProductTableRow(product) {
+            const title = product.title || 'N/A';
+            const barcode = product.barcode || 'N/A';
+            const stockCode = product.stockCode || 'N/A';
+            const quantity = product.quantity || 0;
+            const salePrice = product.salePrice || 0;
+            const currency = product.currencyType || 'TRY';
+            const approved = product.approved ? 'Approved' : 'Not Approved';
+            const approvedClass = product.approved ? 'bg-success' : 'bg-warning';
+
+            return `
+                <tr>
+                    <td>${title}</td>
+                    <td>${barcode}</td>
+                    <td>${stockCode}</td>
+                    <td>${quantity}</td>
+                    <td>${salePrice} ${currency}</td>
+                    <td><span class="badge ${approvedClass}">${approved}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-info" onclick='showProductJSON(${JSON.stringify(product)})'>
+                            <i class="bi bi-file-earmark-code"></i> View JSON
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function showProductJSON(product) {
+            const modal = new bootstrap.Modal(document.getElementById('invoiceModal'));
+            document.querySelector('#invoiceModal .modal-title').textContent = 'Product JSON';
+            document.getElementById('invoiceJSON').textContent = JSON.stringify(product, null, 2);
+            modal.show();
+        }
+
+        // Status dropdown with checkboxes
+        function updateStatusDropdownText() {
+            const checkboxes = document.querySelectorAll('#statusDropdownMenu input[type="checkbox"]:checked');
+            const dropdownText = document.getElementById('statusDropdownText');
+            
+            if (checkboxes.length === 0) {
+                dropdownText.textContent = 'All Statuses';
+            } else if (checkboxes.length === 1) {
+                dropdownText.textContent = checkboxes[0].value;
+            } else {
+                dropdownText.textContent = `${checkboxes.length} statuses selected`;
+            }
+        }
+
+        // Prevent dropdown from closing when clicking on checkboxes
+        document.getElementById('statusDropdownMenu').addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        // Update dropdown text when checkboxes change
+        document.querySelectorAll('#statusDropdownMenu input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', updateStatusDropdownText);
+        });
+
+        // Clear all button
+        document.getElementById('clearStatusBtn').addEventListener('click', () => {
+            document.querySelectorAll('#statusDropdownMenu input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+            });
+            updateStatusDropdownText();
+        });
+
+        document.getElementById('filterBtn').addEventListener('click', () => {
+            currentPage = 0;
+            loadOrders();
+        });
+
+        document.getElementById('filterProductsBtn').addEventListener('click', () => {
+            currentPage = 0;
+            loadProducts();
+        });
+
+        document.getElementById('rowsPerPage').addEventListener('change', (e) => {
+            pageSize = parseInt(e.target.value);
+            currentPage = 0;
+            loadOrders();
+        });
+
+        document.getElementById('productsPerPage').addEventListener('change', (e) => {
+            currentPage = 0;
+            loadProducts();
+        });
+
+        document.getElementById('prevPageBtn').addEventListener('click', () => {
+            if (currentPage > 0) {
+                currentPage--;
+                if (activeTab === 'products') {
+                    loadProducts();
+                } else {
+                    loadOrders();
+                }
+            }
+        });
+
+        document.getElementById('nextPageBtn').addEventListener('click', () => {
+            if (currentPage < totalPages - 1) {
+                currentPage++;
+                if (activeTab === 'products') {
+                    loadProducts();
+                } else {
+                    loadOrders();
+                }
+            }
+        });
+
+        document.getElementById('all-orders-tab').addEventListener('click', () => {
+            activeTab = 'all';
+            currentPage = 0;
+            document.getElementById('trendyolFilters').style.display = 'block';
+            document.getElementById('bulkActionsSection').style.display = 'none';
+            document.getElementById('smartbillFilters').style.display = 'none';
+            document.getElementById('uploadTrendyolFilters').style.display = 'none';
+            document.getElementById('productsFilters').style.display = 'none';
+            document.getElementById('stornareFilters').style.display = 'none';
+            document.getElementById('facturareFilters').style.display = 'none';
+            document.getElementById('seriesInfo').style.display = 'none';
+            document.getElementById('tableView').style.display = 'block';
+            document.getElementById('pageInfo').parentElement.parentElement.style.display = 'flex';
+            loadOrders();
+        });
+
+        document.getElementById('without-invoice-tab').addEventListener('click', () => {
+            activeTab = 'without-invoice';
+            currentPage = 0;
+            document.getElementById('trendyolFilters').style.display = 'block';
+            document.getElementById('bulkActionsSection').style.display = 'flex';
+            document.getElementById('smartbillFilters').style.display = 'none';
+            document.getElementById('uploadTrendyolFilters').style.display = 'none';
+            document.getElementById('productsFilters').style.display = 'none';
+            document.getElementById('stornareFilters').style.display = 'none';
+            document.getElementById('facturareFilters').style.display = 'none';
+            document.getElementById('seriesInfo').style.display = 'none';
+            document.getElementById('tableView').style.display = 'block';
+            document.getElementById('pageInfo').parentElement.parentElement.style.display = 'flex';
+            loadOrders();
+        });
+
+        async function loadSeriesInfo() {
+            try {
+                const response = await fetch('/api/smartbill/series?type=f');
+                const data = await response.json();
+                
+                const seriesInfoDiv = document.getElementById('seriesInfoContent');
+                
+                if (data.error) {
+                    seriesInfoDiv.innerHTML = `<small class="text-danger">${data.error}</small>`;
+                    return;
+                }
+                
+                if (data.list && data.list.length > 0) {
+                    let html = '<table class="table table-sm mb-0"><tbody>';
+                    data.list.forEach(series => {
+                        const nextNumber = (parseInt(series.nextNumber) || 1);
+                        html += `
+                            <tr>
+                                <td><strong>${series.name}</strong></td>
+                                <td class="text-muted">Last invoice: <strong>${series.name}-${String(nextNumber - 1).padStart(4, '0')}</strong></td>
+                                <td class="text-success">Next invoice: <strong>${series.name}-${String(nextNumber).padStart(4, '0')}</strong></td>
+                            </tr>
+                        `;
+                    });
+                    html += '</tbody></table>';
+                    seriesInfoDiv.innerHTML = html;
+                } else {
+                    seriesInfoDiv.innerHTML = '<small class="text-muted">No invoice series found</small>';
+                }
+                
+                document.getElementById('seriesInfo').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading series info:', error);
+                document.getElementById('seriesInfoContent').innerHTML = 
+                    `<small class="text-danger">Error loading series information</small>`;
+            }
+        }
+
+        document.getElementById('smartbill-tab').addEventListener('click', () => {
+            activeTab = 'smartbill';
+            document.getElementById('trendyolFilters').style.display = 'none';
+            document.getElementById('smartbillFilters').style.display = 'block';
+            document.getElementById('uploadTrendyolFilters').style.display = 'none';
+            document.getElementById('productsFilters').style.display = 'none';
+            document.getElementById('stornareFilters').style.display = 'none';
+            document.getElementById('facturareFilters').style.display = 'none';
+            document.getElementById('tableView').style.display = 'none';
+            document.getElementById('pageInfo').parentElement.parentElement.style.display = 'none';
+            loadSeriesInfo();
+        });
+
+        document.getElementById('upload-trendyol-tab').addEventListener('click', () => {
+            activeTab = 'upload-trendyol';
+            document.getElementById('trendyolFilters').style.display = 'none';
+            document.getElementById('smartbillFilters').style.display = 'none';
+            document.getElementById('uploadTrendyolFilters').style.display = 'block';
+            document.getElementById('productsFilters').style.display = 'none';
+            document.getElementById('stornareFilters').style.display = 'none';
+            document.getElementById('facturareFilters').style.display = 'none';
+            document.getElementById('tableView').style.display = 'none';
+            document.getElementById('pageInfo').parentElement.parentElement.style.display = 'none';
+        });
+
+        document.getElementById('products-tab').addEventListener('click', () => {
+            activeTab = 'products';
+            currentPage = 0;
+            document.getElementById('trendyolFilters').style.display = 'none';
+            document.getElementById('smartbillFilters').style.display = 'none';
+            document.getElementById('uploadTrendyolFilters').style.display = 'none';
+            document.getElementById('productsFilters').style.display = 'block';
+            document.getElementById('stornareFilters').style.display = 'none';
+            document.getElementById('facturareFilters').style.display = 'none';
+            document.getElementById('tableView').style.display = 'block';
+            document.getElementById('pageInfo').parentElement.parentElement.style.display = 'flex';
+            loadProducts();
+        });
+
+        document.getElementById('stornare-tab').addEventListener('click', () => {
+            activeTab = 'stornare';
+            document.getElementById('trendyolFilters').style.display = 'none';
+            document.getElementById('smartbillFilters').style.display = 'none';
+            document.getElementById('uploadTrendyolFilters').style.display = 'none';
+            document.getElementById('productsFilters').style.display = 'none';
+            document.getElementById('stornareFilters').style.display = 'block';
+            document.getElementById('facturareFilters').style.display = 'none';
+            document.getElementById('tableView').style.display = 'none';
+            document.getElementById('pageInfo').parentElement.parentElement.style.display = 'none';
+        });
+
+        document.getElementById('facturare-tab').addEventListener('click', () => {
+            activeTab = 'facturare';
+            document.getElementById('trendyolFilters').style.display = 'none';
+            document.getElementById('smartbillFilters').style.display = 'none';
+            document.getElementById('uploadTrendyolFilters').style.display = 'none';
+            document.getElementById('productsFilters').style.display = 'none';
+            document.getElementById('stornareFilters').style.display = 'none';
+            document.getElementById('facturareFilters').style.display = 'block';
+            document.getElementById('tableView').style.display = 'none';
+            document.getElementById('pageInfo').parentElement.parentElement.style.display = 'none';
+            // loadFacturareOrders(); 
+        });
+
+        document.getElementById('downloadPdfBtn').addEventListener('click', downloadInvoicePDF);
+
+        document.getElementById('uploadTrendyolForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const orderId = document.getElementById('uploadOrderId').value.trim();
+            const pdfFile = document.getElementById('invoicePdfFile').files[0];
+            const messageDiv = document.getElementById('uploadTrendyolMessage');
+            const uploadBtn = document.getElementById('uploadTrendyolBtn');
+            
+            messageDiv.style.display = 'none';
+            
+            if (!orderId || !pdfFile) {
+                messageDiv.className = 'alert alert-warning mt-3';
+                messageDiv.textContent = 'Please provide both Order ID and PDF file';
+                messageDiv.style.display = 'block';
+                return;
+            }
+            
+            if (pdfFile.type !== 'application/pdf') {
+                messageDiv.className = 'alert alert-warning mt-3';
+                messageDiv.textContent = 'Please select a PDF file';
+                messageDiv.style.display = 'block';
+                return;
+            }
+            
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+            
+            try {
+                const formData = new FormData();
+                formData.append('order_id', orderId);
+                formData.append('pdf_file', pdfFile);
+                
+                const response = await fetch('/api/upload-invoice-to-trendyol', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    messageDiv.className = 'alert alert-success mt-3';
+                    messageDiv.textContent = data.message || 'Invoice uploaded successfully to Trendyol!';
+                    messageDiv.style.display = 'block';
+                    document.getElementById('uploadTrendyolForm').reset();
+                } else {
+                    messageDiv.className = 'alert alert-danger mt-3';
+                    messageDiv.textContent = data.error || 'Failed to upload invoice';
+                    messageDiv.style.display = 'block';
+                }
+            } catch (err) {
+                messageDiv.className = 'alert alert-danger mt-3';
+                messageDiv.textContent = 'Error: ' + err.message;
+                messageDiv.style.display = 'block';
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = '<i class="bi bi-upload"></i> Upload to Trendyol';
+            }
+        });
+
+        let facturareOrders = [];
+        let facturareAllOrders = [];
+        let facturareOrdersData = {};
+        let facturareHideInDb = false;
+
+        async function loadFacturareOrders() {
+            const status = document.getElementById('facturareStatus').value;
+            const startDate = document.getElementById('facturareStartDate').value;
+            const endDate = document.getElementById('facturareEndDate').value;
+            const searchVal = document.getElementById('facturareSearch').value.trim();
+            const currencyFilter = document.getElementById('facturareSortCurrency').value;
+            const tableBody = document.getElementById('facturareTableBody');
+            const tableContainer = document.getElementById('facturareTableContainer');
+            const messageDiv = document.getElementById('facturareMessage');
+            const bulkBtn = document.getElementById('facturareBulkBtn');
+            const countDiv = document.getElementById('facturareCount');
+
+            messageDiv.style.display = 'none';
+            tableBody.innerHTML = '<tr><td colspan="8" class="text-center"><span class="spinner-border spinner-border-sm"></span> Loading all orders...</td></tr>';
+            tableContainer.style.display = 'block';
+            bulkBtn.disabled = true;
+
+            await loadOrderInvoices();
+
+            const searchTerms = searchVal ? searchVal.split(',').map(s => s.trim().toLowerCase()).filter(s => s) : [];
+
+            try {
+                let allOrders = [];
+                const seenOrderIds = new Set();
+
+                if (searchTerms.length > 0) {
+                    for (const term of searchTerms) {
+                        if (/^\d+$/.test(term)) {
+                            try {
+                                const resp = await fetch(`/api/orders?orderNumber=${term}&size=50`);
+                                const data = await resp.json();
+                                if (data.content) {
+                                    data.content.forEach(order => {
+                                        const oid = String(order.orderNumber || order.id);
+                                        if (!seenOrderIds.has(oid)) {
+                                            seenOrderIds.add(oid);
+                                            allOrders.push(order);
+                                        }
+                                    });
+                                }
+                            } catch (e) {
+                                console.error('Order number lookup failed for', term, e);
+                            }
+                        }
+                    }
+                }
+
+                if (status || startDate || endDate) {
+                    let page = 0;
+                    let hasMore = true;
+
+                    while (hasMore) {
+                        const params = new URLSearchParams({ page: page, size: 200 });
+                        if (status) params.append('status', status);
+                        if (startDate) params.append('startDate', startDate + 'T00:00:00');
+
+                        const response = await fetch(`/api/orders?${params}`);
+                        const data = await response.json();
+
+                        if (data.error) {
+                            messageDiv.className = 'alert alert-danger mb-0';
+                            messageDiv.textContent = data.error;
+                            messageDiv.style.display = 'block';
+                            tableBody.innerHTML = '';
+                            return;
+                        }
+
+                        const orders = data.content || [];
+                        orders.forEach(order => {
+                            const oid = String(order.orderNumber || order.id);
+                            if (!seenOrderIds.has(oid)) {
+                                seenOrderIds.add(oid);
+                                allOrders.push(order);
+                            }
+                        });
+
+                        if (orders.length < 200) {
+                            hasMore = false;
+                        } else {
+                            page++;
+                        }
+                    }
+                }
+
+                if (allOrders.length === 0 && !status && !startDate && !endDate && searchTerms.length === 0) {
+                    messageDiv.className = 'alert alert-info mb-0';
+                    messageDiv.textContent = 'Please set a date range, status, or enter order numbers to load orders.';
+                    messageDiv.style.display = 'block';
+                    tableBody.innerHTML = '';
+                    bulkBtn.disabled = true;
+                    return;
+                }
+
+                let filtered = allOrders;
+
+                if (startDate || endDate) {
+                    filtered = filtered.filter(order => {
+                        const orderDateMs = order.orderDate;
+                        if (!orderDateMs) return false;
+                        const d = new Date(orderDateMs);
+                        const orderDateStr = d.getFullYear() + '-' +
+                            String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                            String(d.getDate()).padStart(2, '0');
+                        if (startDate && orderDateStr < startDate) return false;
+                        if (endDate && orderDateStr > endDate) return false;
+                        return true;
+                    });
+                }
+
+                if (searchTerms.length > 0) {
+                    filtered = filtered.filter(order => {
+                        const orderNum = String(order.orderNumber || '').toLowerCase();
+                        const lines = order.lines || [];
+                        return searchTerms.some(term => {
+                            if (orderNum.includes(term)) return true;
+                            return lines.some(line => {
+                                const sku = (line.merchantSku || '').toLowerCase();
+                                const barcode = (line.barcode || '').toLowerCase();
+                                const stockCode = (line.stockCode || line.sku || '').toLowerCase();
+                                return sku.includes(term) || barcode.includes(term) || stockCode.includes(term);
+                            });
+                        });
+                    });
+                }
+
+                if (currencyFilter) {
+                    filtered = filtered.filter(order => (order.currencyCode || '') === currencyFilter);
+                }
+
+                filtered.sort((a, b) => {
+                    const dateA = a.orderDate || 0;
+                    const dateB = b.orderDate || 0;
+                    return dateA - dateB;
+                });
+
+                facturareAllOrders = filtered;
+                renderFacturareTable();
+
+            
+
+            } catch (err) {
+                messageDiv.className = 'alert alert-danger mb-0';
+                messageDiv.textContent = 'Error: ' + err.message;
+                messageDiv.style.display = 'block';
+                tableBody.innerHTML = '';
+            }
+        }
+
+        function renderFacturareTable() {
+            const tableBody = document.getElementById('facturareTableBody');
+            const tableContainer = document.getElementById('facturareTableContainer');
+            const bulkBtn = document.getElementById('facturareBulkBtn');
+            const countDiv = document.getElementById('facturareCount');
+
+            let displayOrders = facturareAllOrders;
+
+            if (facturareHideInDb) {
+                displayOrders = displayOrders.filter(order => {
+                    const orderNum = String(order.orderNumber || '');
+                    return !orderInvoices[orderNum];
+                });
+            }
+
+            facturareOrders = displayOrders;
+            facturareOrdersData = {};
+            displayOrders.forEach(o => { facturareOrdersData[o.id] = o; });
+
+            tableContainer.style.display = 'block';
+
+            if (displayOrders.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="8" class="text-center">No orders found matching filters</td></tr>';
+                countDiv.textContent = '0 orders';
+                bulkBtn.disabled = true;
+                return;
+            }
+
+            tableBody.innerHTML = displayOrders.map(order => {
+                const orderNumber = order.orderNumber || 'N/A';
+                const name = `${order.customerFirstName || ''} ${order.customerLastName || ''}`.trim() || 'N/A';
+                const orderDate = order.orderDate ? new Date(order.orderDate).toLocaleDateString() : 'N/A';
+                const orderStatus = order.status || 'Unknown';
+                const total = order.grossAmount || order.totalPrice || 0;
+                const currency = order.currencyCode || 'RON';
+                const statusClass = getStatusClass(orderStatus);
+                const hasInv = orderInvoices[String(orderNumber)];
+                const hasTrendyolLink = order.invoiceLink && !hasInv;
+                let invStatus;
+                if (hasInv) {
+                    invStatus = `<span class="badge bg-success">${hasInv.series}-${hasInv.number}</span>`;
+                } else if (hasTrendyolLink) {
+                    invStatus = '<span class="badge bg-info">Trendyol only (not in DB)</span>';
+                } else {
+                    invStatus = '<span class="badge bg-warning">No Invoice</span>';
+                }
+
+                return `<tr>
+                    <td><strong>${orderNumber}</strong></td>
+                    <td>${name}</td>
+                    <td>${orderDate}</td>
+                    <td><span class="badge status-badge ${statusClass}">${orderStatus}</span></td>
+                    <td>${total} ${currency}</td>
+                    <td>${currency}</td>
+                    <td>${invStatus}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-info" onclick="showFacturareXML('${order.id}')">XML</button>
+                    </td>
+                </tr>`;
+            }).join('');
+
+            countDiv.textContent = `${displayOrders.length} orders found`;
+            bulkBtn.disabled = false;
+        }
+
+        document.getElementById('facturareToggleInvoiced').addEventListener('click', function() {
+            facturareHideInDb = !facturareHideInDb;
+            this.textContent = facturareHideInDb ? 'Show all orders' : 'Hide orders in DB';
+            this.className = facturareHideInDb ? 'btn btn-secondary w-100' : 'btn btn-outline-secondary w-100';
+            if (facturareAllOrders.length > 0) {
+                renderFacturareTable();
+            }
+        });
+
+        async function showFacturareXML(orderId) {
+            const order = facturareOrdersData[orderId];
+            if (!order) {
+                alert('Order data not found');
+                return;
+            }
+            const invoiceData = await generateInvoiceJSON(order);
+            const issueDateOverride = document.getElementById('facturareIssueDate').value.trim();
+            if (issueDateOverride) invoiceData.issueDate = issueDateOverride;
+            invoiceData.orderNumber = order.orderNumber;
+
+            currentInvoiceJSON = JSON.stringify(invoiceData, null, 2);
+            document.querySelector('#invoiceModal .modal-title').textContent = 'Invoice Data (Facturare)';
+            document.getElementById('invoiceJSON').textContent = currentInvoiceJSON;
+            const modal = new bootstrap.Modal(document.getElementById('invoiceModal'));
+            modal.show();
+        }
+
+        document.getElementById('facturareFilterBtn').addEventListener('click', loadFacturareOrders);
+
+        document.getElementById('facturareBulkBtn').addEventListener('click', async function() {
+            if (facturareOrders.length === 0) {
+                alert('No orders to process. Please filter first.');
+                return;
+            }
+
+            const issueDate = document.getElementById('facturareIssueDate').value.trim();
+            const gestiune = document.getElementById('facturareGestiune').value;
+
+            if (!confirm(`Process ${facturareOrders.length} orders?\n\nThis will:\n1. Create invoices in SmartBill\n2. Upload each invoice to Trendyol\n\nGestiune: ${gestiune === 'cu' ? 'Cu gestiune' : 'Fara gestiune'}\nIssue Date: ${issueDate || 'Today'}`)) {
+                return;
+            }
+
+            const btn = this;
+            const messageDiv = document.getElementById('facturareMessage');
+            const progressDiv = document.getElementById('facturareProgress');
+            const progressBar = document.getElementById('facturareProgressBar');
+            const progressText = document.getElementById('facturareProgressText');
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+            progressDiv.style.display = 'block';
+            messageDiv.style.display = 'none';
+
+            let successCount = 0;
+            let failCount = 0;
+            let results = [];
+
+            for (let i = 0; i < facturareOrders.length; i++) {
+                const order = facturareOrders[i];
+                const pct = Math.round(((i + 1) / facturareOrders.length) * 100);
+                progressBar.style.width = pct + '%';
+                progressBar.textContent = pct + '%';
+                progressText.textContent = `Processing ${i + 1} of ${facturareOrders.length}: Order ${order.orderNumber}`;
+
+                const result = { orderNumber: order.orderNumber, smartbill: '', trendyol: '', status: '' };
+
+                try {
+                    const invoiceData = await generateInvoiceJSON(order);
+                    if (issueDate) invoiceData.issueDate = issueDate;
+                    invoiceData.orderNumber = order.orderNumber;
+
+                    const createResponse = await fetch('/api/smartbill/create-invoice', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(invoiceData)
+                    });
+
+                    const createResult = await createResponse.json();
+
+                    if (!createResponse.ok || createResult.error) {
+                        failCount++;
+                        result.smartbill = createResult.error || 'Failed';
+                        result.trendyol = '-';
+                        result.status = 'fail';
+                        results.push(result);
+                        continue;
+                    }
+
+                    const invSeries = createResult.series;
+                    const invNumber = createResult.number;
+                    const packageId = order.id;
+
+                    result.smartbill = `${invSeries}-${invNumber}`;
+                    orderInvoices[order.orderNumber] = { series: invSeries, number: invNumber };
+
+                    const uploadResponse = await fetch('/api/upload-smartbill-invoice-to-trendyol', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            shipment_package_id: packageId,
+                            series: invSeries,
+                            number: invNumber
+                        })
+                    });
+
+                    const uploadResult = await uploadResponse.json();
+
+                    if (!uploadResponse.ok || uploadResult.error) {
+                        failCount++;
+                        result.trendyol = uploadResult.error || 'Failed';
+                        result.status = 'partial';
+                        results.push(result);
+                    } else {
+                        successCount++;
+                        result.trendyol = 'Uploaded';
+                        result.status = 'success';
+                        results.push(result);
+                    }
+
+                } catch (err) {
+                    failCount++;
+                    result.smartbill = result.smartbill || err.message;
+                    result.trendyol = result.trendyol || err.message;
+                    result.status = 'fail';
+                    results.push(result);
+                }
+            }
+
+            let msgHtml = `<strong>Bulk Facturare Complete:</strong> ${successCount} successful, ${failCount} failed out of ${facturareOrders.length}`;
+            msgHtml += '<table class="table table-sm table-bordered mt-3 mb-0" style="font-size:0.85rem;">';
+            msgHtml += '<thead><tr><th>#</th><th>Order</th><th>SmartBill</th><th>Trendyol</th><th>Status</th></tr></thead><tbody>';
+            results.forEach((r, idx) => {
+                const rowClass = r.status === 'success' ? 'table-success' : (r.status === 'partial' ? 'table-warning' : 'table-danger');
+                const statusIcon = r.status === 'success' ? 'OK' : (r.status === 'partial' ? 'Partial' : 'Failed');
+                msgHtml += `<tr class="${rowClass}"><td>${idx+1}</td><td>${r.orderNumber}</td><td>${r.smartbill}</td><td>${r.trendyol}</td><td>${statusIcon}</td></tr>`;
+            });
+            msgHtml += '</tbody></table>';
+
+            btn.disabled = false;
+            btn.innerHTML = 'Bulk Facturare (SmartBill + Trendyol)';
+
+            await loadFacturareOrders();
+
+            progressText.textContent = `Done! ${successCount} success, ${failCount} failed out of ${facturareOrders.length}`;
+            messageDiv.className = failCount === 0 ? 'alert alert-success mb-0' : 'alert alert-warning mb-0';
+            messageDiv.innerHTML = msgHtml;
+            messageDiv.style.display = 'block';
+        });
+
+        document.getElementById('stornareBtn').addEventListener('click', async function() {
+            const series = document.getElementById('stornareSeries').value.trim();
+            const numbersStr = document.getElementById('stornareNumbers').value.trim();
+            const issueDate = document.getElementById('stornareDate').value.trim();
+            const messageDiv = document.getElementById('stornareMessage');
+            const progressDiv = document.getElementById('stornareProgress');
+            const progressBar = document.getElementById('stornareProgressBar');
+            const progressText = document.getElementById('stornareProgressText');
+            const resultsDiv = document.getElementById('stornareResults');
+            const resultsBody = document.getElementById('stornareResultsBody');
+            const btn = document.getElementById('stornareBtn');
+
+            messageDiv.style.display = 'none';
+            progressDiv.style.display = 'none';
+            resultsDiv.style.display = 'none';
+            resultsBody.innerHTML = '';
+
+            if (!series) {
+                messageDiv.className = 'alert alert-warning mt-3';
+                messageDiv.textContent = 'Please enter the invoice series.';
+                messageDiv.style.display = 'block';
+                return;
+            }
+
+            if (!numbersStr) {
+                messageDiv.className = 'alert alert-warning mt-3';
+                messageDiv.textContent = 'Please enter at least one invoice number.';
+                messageDiv.style.display = 'block';
+                return;
+            }
+
+            const numbers = numbersStr.split(',').map(n => n.trim()).filter(n => n !== '');
+            if (numbers.length === 0) {
+                messageDiv.className = 'alert alert-warning mt-3';
+                messageDiv.textContent = 'No valid invoice numbers found.';
+                messageDiv.style.display = 'block';
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to reverse ${numbers.length} invoice(s) from series ${series}?\n\nInvoices: ${numbers.join(', ')}\n\nThis action cannot be undone!`)) {
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+            progressDiv.style.display = 'block';
+            resultsDiv.style.display = 'block';
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (let i = 0; i < numbers.length; i++) {
+                const num = numbers[i];
+                const pct = Math.round(((i + 1) / numbers.length) * 100);
+                progressBar.style.width = pct + '%';
+                progressBar.textContent = pct + '%';
+                progressText.textContent = `Processing ${i + 1} of ${numbers.length}: ${series}-${num}`;
+
+                try {
+                    const response = await fetch('/api/smartbill/invoice/reverse', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            series: series,
+                            number: num,
+                            issueDate: issueDate || ''
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && !result.error) {
+                        successCount++;
+                        const stornNumber = result.number || '-';
+                        const stornSeries = result.series || '-';
+                        resultsBody.innerHTML += `
+                            <tr class="table-success">
+                                <td>${series}</td>
+                                <td>${num}</td>
+                                <td><span class="badge bg-success">Success</span></td>
+                                <td>Reversed. Storno: ${stornSeries}-${stornNumber}</td>
+                            </tr>`;
+                    } else {
+                        errorCount++;
+                        resultsBody.innerHTML += `
+                            <tr class="table-danger">
+                                <td>${series}</td>
+                                <td>${num}</td>
+                                <td><span class="badge bg-danger">Error</span></td>
+                                <td>${result.error || 'Unknown error'}</td>
+                            </tr>`;
+                    }
+                } catch (err) {
+                    errorCount++;
+                    resultsBody.innerHTML += `
+                        <tr class="table-danger">
+                            <td>${series}</td>
+                            <td>${num}</td>
+                            <td><span class="badge bg-danger">Error</span></td>
+                            <td>${err.message}</td>
+                        </tr>`;
+                }
+            }
+
+            progressText.textContent = `Done! ${successCount} success, ${errorCount} errors out of ${numbers.length} invoices.`;
+            messageDiv.className = errorCount === 0 ? 'alert alert-success mt-3' : 'alert alert-warning mt-3';
+            messageDiv.textContent = `Stornare complete: ${successCount} reversed successfully, ${errorCount} failed.`;
+            messageDiv.style.display = 'block';
+
+            btn.disabled = false;
+            btn.innerHTML = 'Stornare';
+        });
+
+        loadOrders()
+        // loadFacturareOrders();
+    </script>
+</body>
+</html>

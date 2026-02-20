@@ -1,0 +1,34 @@
+sqlite3 users.db
+
+SELECT id, username, role FROM users;
+SELECT * FROM order_invoices LIMIT 10;
+.tables
+.quit
+
+
+
+SELECT * FROM order_invoices WHERE invoice_series is 'ONE' AND invoice_number IN ('4197'); 10690805653
+SELECT * FROM order_invoices WHERE invoice_series is 'ONE' AND invoice_number IN ('4304'); 10705501296
+
+
+DELETE FROM order_invoices WHERE invoice_series is 'ONE' AND invoice_number IN ('4304');
+
+WHERE order_id IN ('ORD123', 'ORD456');
+
+
+
+.headers on         
+.mode column  
+
+ONE4196
+
+-----------
+- Sa scot din taburile vechi
+- sa scriu logul si in fisier cu timestamp
+- sa punbuton de clear filters
+- sa retin eroarea pe care o da cand imi zice ca nu am produsl in gestiune si sa il faca fara gestiune (poate)
+- sa aranjez butoatnele si campurile pe categorii unde am de seach unde am de input
+- functie sa urce singu facturi goale pt comenzile refuzate
+- sa nu mai incarce active tab tab-ul cu all
+- buton de urcat factura pdf retur
+

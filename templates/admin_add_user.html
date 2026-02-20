@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add User - Trendyol Order Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">Add New User</span>
+            <div class="d-flex">
+                <a href="{{ url_for('admin_users') }}" class="btn btn-outline-light me-2">Back to Users</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-light">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <h4 class="mb-3">Basic Information</h4>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="username" class="form-label">Username *</label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="password" class="form-label">Password *</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label for="role" class="form-label">Role *</label>
+                            <select class="form-select" id="role" name="role" required>
+                                <option value="user">User</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <h4 class="mb-3">Trendyol API Credentials</h4>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="trendyol_api_key" class="form-label">API Key</label>
+                            <input type="text" class="form-control" id="trendyol_api_key" name="trendyol_api_key">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="trendyol_api_secret" class="form-label">API Secret</label>
+                            <input type="text" class="form-control" id="trendyol_api_secret" name="trendyol_api_secret">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="trendyol_supplier_id" class="form-label">Supplier ID</label>
+                            <input type="text" class="form-control" id="trendyol_supplier_id" name="trendyol_supplier_id">
+                        </div>
+                    </div>
+
+                    <h4 class="mb-3">SmartBill API Credentials</h4>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="smartbill_api_token" class="form-label">API Token</label>
+                            <input type="text" class="form-control" id="smartbill_api_token" name="smartbill_api_token">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="smartbill_email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="smartbill_email" name="smartbill_email">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="smartbill_company_cif" class="form-label">Company CIF</label>
+                            <input type="text" class="form-control" id="smartbill_company_cif" name="smartbill_company_cif">
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label for="smartbill_gestiune" class="form-label">Gestiune</label>
+                            <input type="text" class="form-control" id="smartbill_gestiune" name="smartbill_gestiune">
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('admin_users') }}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Create User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
